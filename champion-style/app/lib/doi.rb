@@ -1,6 +1,5 @@
 module FAIRChampion
   class Harvester
-
     def self.resolve_doi(guid, meta)
       guid.downcase!
       type, url = Harvester.convertToURL(guid)
@@ -24,6 +23,218 @@ module FAIRChampion
       end
 
       meta
+    end
+
+    # this should only be called AFTER the general resolve above
+    def self.resolve_doi_to_registration_agency(doi, meta)
+      doi.downcase!
+      doi.gsub!(%r{https?://[^/+]/}, '')
+      doi.strip!
+      url = "https://doi.org/doiRA/#{doi}"
+      meta.comments << "INFO:  Finding DOI registration agency.\n"
+
+      meta.comments << "INFO:  Attempting to resolve #{url} using HTTP Headers {\"Accept\"=>\"*/*\"}.\n"
+      _headers, body = FAIRChampion::Harvester.fetch(guid: url, headers: FAIRChampion::Utils::AcceptDefaultHeader)
+      if body
+        meta.comments << "INFO:  parsing agency from response\n"
+        json = JSON.parse(body)
+        json.dig(0, 'RA')
+      else
+        meta.comments << "WARN:  doiRA did not return JSON.  Aborting.\n"
+        false
+      end
+    end
+
+    def self.get_funding_information_from_crossref(doi, meta)
+      # https://api.crossref.org/works/10.1063/5.0095229
+      doi.downcase!
+      doi.gsub!(%r{https?://[^/+]/}, '')
+      doi.strip!
+      url = "https://api.crossref.org/works/#{doi}"
+      meta.comments << "INFO:  Looking for funding information\n"
+      _headers, body = FAIRChampion::Harvester.fetch(guid: url, headers: FAIRChampion::Utils::AcceptDefaultHeader)
+      # warn "headers #{_headers} #{url}"
+      # abort
+      return false unless body
+
+      meta.comments << "INFO:  parsing funding info from response\n"
+      json = JSON.parse(body)
+      funding_refs = json.dig('message', 'funder')
+      first_funding = funding_refs&.dig(0) # safe navigation + dig
+
+      if first_funding
+        meta.comments << "INFO:  funding info block found\n"
+        first_funding
+      else
+        meta.comments << "WARN:  no funding information block found\n"
+        false
+      end
+    end
+
+    def self.get_funding_information_from_datacite(doi, meta)
+      # https://api.datacite.org/dois/10.15151/ESRF-ES-2303075148
+      doi.downcase!
+      doi.gsub!(%r{https?://[^/+]/}, '')
+      doi.strip!
+      url = "https://api.datacite.org/dois/#{doi}"
+      meta.comments << "INFO:  Looking for funding information\n"
+      _headers, body = FAIRChampion::Harvester.fetch(guid: url, headers: FAIRChampion::Utils::AcceptDefaultHeader)
+      return false unless body
+
+      # warn body
+
+      meta.comments << "INFO:  parsing funding info from response\n"
+      data = JSON.parse(body)
+
+      funding_refs = data.dig('data', 'attributes', 'fundingReferences')
+      first_funding = funding_refs&.dig(0) # safe navigation + dig
+
+      if first_funding
+        meta.comments << "INFO:  funding info block found\n"
+        first_funding
+      else
+        meta.comments << "WARN:  no funding information block found\n"
+        false
+      end
+    end
+
+    def self.check_affiliation_information_from_crossref(doi, meta)
+      # https://api.crossref.org/works/10.1063/5.0095229
+      doi.downcase!
+      doi.gsub!(%r{https?://[^/+]/}, '')
+      doi.strip!
+      url = "https://api.crossref.org/works/#{doi}"
+      meta.comments << "INFO:  Looking for affiliation information\n"
+      _headers, body = FAIRChampion::Harvester.fetch(guid: url, headers: FAIRChampion::Utils::AcceptDefaultHeader)
+      # warn "headers #{_headers} #{url}"
+      # abort
+      return false unless body
+
+      # normal author
+      meta.comments << "INFO:  parsing affiliation info from response\n"
+      json = JSON.parse(body)
+      auths = json.dig('message', 'author')
+      auths&.each do |auth|
+        if auth['affiliation']&.first # cant be empty list
+          meta.comments << "INFO:  At least one author has affiliation information\n"
+          return true
+        end
+      end
+
+      # grant author
+      # "investigator": [
+      #           {
+      #             "given": "Manka",
+      #             "family": "Varghese",
+      #             "affiliation": [
+      #               {
+      #                 "name": "University of Washington"
+      #               }
+      #             ]
+      #           },
+      # ...
+
+      #  "lead-investigator": [
+      #           {
+      #             "given": "Jessica",
+      #             "family": "Thompson",
+      #             "affiliation": [
+      #               {
+      #                 "name": "University of Washington"
+      #               }
+      #             ]
+      #           }
+      #         ],
+      meta.comments << "INFO:  checking for investigator or lead investigator in grant information\n"
+      json = JSON.parse(body)
+      projects = json.dig('message', 'project') # returns a list
+      projects&.each do |proj|
+        investigators = proj['investigator'] # two possibilities
+        investigators << proj['lead-investigator']
+        investigators&.each do |inv|
+          if inv['affiliation']&.first
+            meta.comments << "INFO:  At least one investigator has affiliation information\n"
+            return true
+          end
+        end
+      end
+
+      meta.comments << "WARN:  no authors had affiliation information\n"
+      false
+    end
+
+    def self.check_affiliation_information_from_datacite(doi, meta)
+      # https://api.datacite.org/dois/10.15151/ESRF-ES-2303075148
+      doi.downcase!
+      doi.gsub!(%r{https?://[^/+]/}, '')
+      doi.strip!
+      url = "https://api.datacite.org/dois/#{doi}"
+      meta.comments << "INFO:  Looking for author affiliation information\n"
+      _headers, body = FAIRChampion::Harvester.fetch(guid: url, headers: FAIRChampion::Utils::AcceptDefaultHeader)
+      return false unless body
+
+      # warn body
+
+      meta.comments << "INFO:  parsing affiliation info from response\n"
+      data = JSON.parse(body)
+
+      auths = data.dig('data', 'attributes', 'creators')
+      auths&.each do |auth|
+        if auth['affiliation']
+          meta.comments << "INFO:  At least one author has affiliation information\n"
+          return true
+        end
+      end
+      meta.comments << "WARN:  no authors had affiliation information\n"
+      false
+    end
+
+    def self.check_license_information_from_datacite(doi, meta)
+      # https://api.datacite.org/dois/10.15151/ESRF-ES-2303075148
+      doi.downcase!
+      doi.gsub!(%r{https?://[^/+]/}, '')
+      doi.strip!
+      url = "https://api.datacite.org/dois/#{doi}"
+      meta.comments << "INFO:  Looking for license information\n"
+      _headers, body = FAIRChampion::Harvester.fetch(guid: url, headers: FAIRChampion::Utils::AcceptDefaultHeader)
+      return false unless body
+
+      # warn body
+
+      meta.comments << "INFO:  parsing license info from response\n"
+      data = JSON.parse(body)
+
+      rights = data.dig('data', 'attributes', 'rightsList') # may return empty list - for a fail
+      if rights&.first
+        meta.comments << "INFO:  license information found\n"
+        return true
+      end
+      meta.comments << "WARN:  no license information found\n"
+      false
+    end
+
+    def self.check_license_information_from_crossref(doi, meta)
+      # https://api.crossref.org/works/10.1063/5.0095229
+      doi.downcase!
+      doi.gsub!(%r{https?://[^/+]/}, '')
+      doi.strip!
+      url = "https://api.crossref.org/works/#{doi}"
+      meta.comments << "INFO:  Looking for license information\n"
+      _headers, body = FAIRChampion::Harvester.fetch(guid: url, headers: FAIRChampion::Utils::AcceptDefaultHeader)
+      # warn "headers #{_headers} #{url}"
+      # abort
+      return false unless body
+
+      # normal author
+      meta.comments << "INFO:  parsing license info from response\n"
+      json = JSON.parse(body)
+      lics = json.dig('message', 'license')
+      if lics&.first
+        meta.comments << "INFO:  found license information\n"
+        return true
+      end
+      meta.comments << "WARN:  no licsense information found\n"
+      false
     end
   end
 end

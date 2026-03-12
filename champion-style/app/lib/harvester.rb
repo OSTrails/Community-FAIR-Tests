@@ -6,6 +6,7 @@ require 'json/ld'
 require 'json/ld/preloaded'
 require 'rdf/trig'
 require 'rdf/raptor'
+require 'rdf/vocab'
 require 'net/http'
 require 'net/https' # for openssl
 require 'uri'
@@ -19,7 +20,6 @@ require 'rest-client'
 require 'cgi'
 require 'digest'
 require 'open3'
-require 'metainspector'
 require 'rdf/xsd'
 require 'require_all'
 # require 'pry'
@@ -119,9 +119,9 @@ module FAIRChampion
       # warn body
       # warn hash.inspect
       # warn hash.class
-      
+
       meta.hash.merge!(hash)
-#      warn meta.hash
+      #      warn meta.hash
       meta.hash
     end
 
@@ -247,48 +247,152 @@ module FAIRChampion
     end
 
     def self.parse_link_body_headers(url, body)
-      m = MetaInspector.new(url, document: body)
-      # accept any alternate that is in structured data format
-      ls = m.head_links.select do |l|
-        l[:rel] == 'alternate' and
-          [FAIRChampion::Utils::RDF_FORMATS.values,
-           FAIRChampion::Utils::XML_FORMATS.values,
-           FAIRChampion::Utils::JSON_FORMATS.values].flatten
-            .include?(l[:type])
-      end
-      # ls is an array of elements that look like this: [{:rel=>"alternate", :type=>"application/ld+json", :href=>"http://scidata.vitk.lv/dataset/303.jsonld"}]
-      urls = ls.map { |l| l[:href] }
-      urls.compact
-      warn "\n\nGOT BODY LINKS #{urls}\n\n"
-      urls
-    end
+      # Parse the HTML body (Nokogiri is tolerant of malformed HTML)
+      doc = Nokogiri::HTML(body)
 
-    def self.deep_dive_values(myHash, value = nil, vals = [])
-      myHash.each_pair do |_k, v|
-        if v.is_a?(Hash)
-          # $stderr.puts "key: #{k} recursing..."
-          deep_dive_values(v, value, vals)
-        else
-          vals << v
+      # Focus on <link> tags inside <head> (MetaInspector's head_links equivalent)
+      # We use css selector for simplicity and readability
+      link_nodes = doc.css('head link[rel="alternate"][type]') # only those with rel=alternate AND type attr
+
+      # Your format lists – assuming these are constants/hashes like:
+      # FAIRChampion::Utils::RDF_FORMATS  => { jsonld: "application/ld+json", ... }
+      # We flatten them once for efficiency
+      allowed_types = [
+        FAIRChampion::Utils::RDF_FORMATS.values,
+        FAIRChampion::Utils::XML_FORMATS.values,
+        FAIRChampion::Utils::JSON_FORMATS.values
+      ].flatten.uniq # uniq to avoid duplicates if any overlap
+
+      # Filter and extract hrefs
+      urls = link_nodes.filter_map do |link|
+        type = link['type']&.strip
+        next unless type && allowed_types.include?(type)
+
+        href = link['href']&.strip
+        href if href && !href.empty?
+      end
+
+      # Optional: make relative URLs absolute (MetaInspector usually does this)
+      base_uri = begin
+        URI.parse(url)
+      rescue StandardError
+        nil
+      end
+      if base_uri
+        urls.map! do |href|
+          URI.join(base_uri, href).to_s
+        rescue StandardError
+          href
         end
       end
+
+      warn "\n\nGOT BODY LINKS #{urls}\n\n"
+
+      urls
+    end
+    # def self.parse_link_body_headers(url, body)
+    #   m = MetaInspector.new(url, document: body)
+    #   # accept any alternate that is in structured data format
+    #   ls = m.head_links.select do |l|
+    #     l[:rel] == 'alternate' and
+    #       [FAIRChampion::Utils::RDF_FORMATS.values,
+    #        FAIRChampion::Utils::XML_FORMATS.values,
+    #        FAIRChampion::Utils::JSON_FORMATS.values].flatten
+    #         .include?(l[:type])
+    #   end
+    #   # ls is an array of elements that look like this: [{:rel=>"alternate", :type=>"application/ld+json", :href=>"http://scidata.vitk.lv/dataset/303.jsonld"}]
+    #   urls = ls.map { |l| l[:href] }
+    #   urls.compact
+    #   warn "\n\nGOT BODY LINKS #{urls}\n\n"
+    #   urls
+    # end
+
+    # Recursively collects **all non-Hash values** (leaf values) from a nested Hash structure.
+    #
+    # Traverses the hash in depth-first order and gathers every value that is not itself
+    # a Hash into a flat array. Keys are completely ignored.
+    #
+    # @param myHash [Hash] the nested hash to traverse
+    # @param value  [Object] currently unused (likely legacy or placeholder parameter)
+    # @param vals   [Array] accumulator for collected values (mutable, passed by reference)
+    # @return [Array] flat list of all leaf (non-Hash) values in depth-first traversal order
+    #
+    # @example
+    #   h = {
+    #     name: "Alice",
+    #     info: {
+    #       age: 34,
+    #       address: { city: "Madrid", coords: { lat: 40.4168, lon: -3.7038 } },
+    #       hobbies: ["reading", "hiking"]
+    #     }
+    #   }
+    #
+    #   deep_dive_values(h)
+    #   # => ["Alice", 34, "Madrid", 40.4168, -3.7038, "reading", "hiking"]
+    #
+    def self.deep_dive_values(myHash, value = nil, vals = [])
+      myHash.each_pair do |_key, value|
+        if value.is_a?(Hash)
+          # $stderr.puts "key: #{_key} recursing..."   # uncomment for debugging
+          deep_dive_values(value, value, vals)
+        else
+          vals << value
+        end
+      end
+
       vals
     end
 
+    # Recursively collects **every key-value pair** from a nested Hash structure as [key, value] arrays.
+    #
+    # Traverses the entire nested hash in depth-first order and records every key-value pair
+    # encountered — including pairs where the value is itself a Hash.
+    #
+    # Note: The `property` parameter is currently **not used** (dead code). Both branches
+    # of the conditional do the same thing, so every pair is collected regardless of `property`.
+    #
+    # @param myHash   [Hash] the nested hash to traverse
+    # @param property [Symbol, String, nil] intended filter key (currently ineffective)
+    # @param props    [Array] accumulator for [key, value] pairs (mutable)
+    # @return [Array<Array>] flat list of [key, value] tuples in depth-first order
+    #
+    # @example
+    #   h = {
+    #     user: "bob42",
+    #     config: {
+    #       theme: "dark",
+    #       alerts: { email: true, push: false }
+    #     }
+    #   }
+    #
+    #   deep_dive_properties(h)
+    #   # => [[:user, "bob42"],
+    #   #     [:config, {theme: "dark", alerts: {email: true, push: false}}],
+    #   #     [:theme, "dark"],
+    #   #     [:alerts, {email: true, push: false}],
+    #   #     [:email, true],
+    #   #     [:push, false]]
+    #
+    #   deep_dive_properties(h, :email)   # ← currently returns the same as above (bug)
+    #
     def self.deep_dive_properties(myHash, property = nil, props = [])
       return props unless myHash.is_a?(Hash)
 
-      myHash.each_pair do |k, v|
-        props << if property and property == k
-                   [k, v]
+      myHash.each_pair do |key, value|
+        # The conditional is redundant — both branches are identical
+        # This is very likely a bug or unfinished implementation.
+        props << if property && property == key
+                   [key, value]
                  else
-                   [k, v]
+                   [key, value]
                  end
-        if v.is_a?(Hash)
-          # $stderr.puts "key: #{k} recursing..."
-          deep_dive_properties(v, property, props)
+
+        if value.is_a?(Hash)
+          # $stderr.puts "key: #{key} recursing..."   # uncomment for debugging
+          deep_dive_properties(value, property, props)
         end
       end
+
       props
     end
 
@@ -298,7 +402,7 @@ module FAIRChampion
         warn "\n\nSTRANGE - headers had no content-type\n\n"
         return nil, nil
       end
-      type.match(%r{([\w\+\.]+/[\w\+\.]+):?;?}im)
+      type.match(%r{([\w+.]+/[\w+.]+):?;?}im)
       type = ::Regexp.last_match(1)
       # $stderr.puts "\n\nsearching for #{type}\n\n"
 
@@ -326,7 +430,7 @@ module FAIRChampion
 
       meta.finalURI |= [finalURI] if meta && finalURI
 
-      warn meta.finalURI.inspect
+      warn meta.finalURI.inspect if meta
       if head and body
         warn 'Retrieved from cache, returning data to code'
         return [head, body]
@@ -451,40 +555,42 @@ module FAIRChampion
     # in principle, we cojuld return a more complex object, but all I need now is the label
     def self.get_tests_metrics(tests:)
       base_url = ENV['TEST_BASE_URL'] || 'http://localhost:8282' # Default to local server
+      test_path = ENV['TEST_PATH'] || 'community-tests' # Default to local server
       labels = {}
+      landingpages = {}
       tests.each do |testid|
-        warn "getting dcat for #{testid}"
+        warn "getting dcat for #{testid}    #{base_url}/#{test_path}/#{testid}"
         dcat = RestClient::Request.execute({
                                              method: :get,
-                                             url: "#{base_url}/tests/#{testid}",
+                                             url: "#{base_url}/#{test_path}/#{testid}",
                                              headers: { 'Accept' => 'application/json' }
                                            }).body
         parseddcat = JSON.parse(dcat)
-        jpath = JsonPath.new('[0]["http://semanticscience.org/resource/SIO_000233"][0]["@id"]')
-        fsdoi = jpath.on(parseddcat).first
-        fsdoi = fsdoi.gsub(%r{https?://doi.org/}, '') # just the doi
-        warn "final FAIRsharing DOI is #{fsdoi}"
+        jpath = JsonPath.new('[0]["http://semanticscience.org/resource/SIO_000233"][0]["@id"]') # is implementation of
+        metricurl = jpath.on(parseddcat).first
+
         begin
-          fs = RestClient::Request.execute({
-                                             method: :post,
-                                             url: 'https://api.fairsharing.org/graphql',
-                                             headers: { 'Content-type' => 'application/json',
-                                                        'X-GraphQL-Key' => ENV.fetch('FAIRSHARING_KEY', nil) },
-                                             payload: '{"query": "{fairsharingRecord(id: \"' + fsdoi + '\") { id name }}"}'
-                                           }).body
+          g = RDF::Graph.load(metricurl, format: :turtle)
         rescue StandardError => e
-          warn "FAIRSharing connection failed #{e.inspect}"
-          fs = '{}'
+          warn "DCAT Metric loading failed #{e.inspect}"
+          g = RDF::Graph.new
         end
-        parsedfs = JSON.parse(fs)
-        if parsedfs['data']
-          label = parsedfs['data']['fairsharingRecord']['name']
-          labels[testid] = label
-        else
-          labels[testid] = 'FAIRSharing label not available'
-        end
+
+        title = g.query([nil, RDF::Vocab::DC.title, nil])&.first&.object&.to_s
+        lp = g.query([nil, RDF::Vocab::DCAT.landingPage, nil])&.first&.object&.to_s
+
+        labels[testid] = if title != ''
+                           title
+                         else
+                           'Metric label not available'
+                         end
+        landingpages[testid] = if lp != ''
+                                 lp
+                               else
+                                 ''
+                               end
       end
-      labels
+      [labels, landingpages]
     end
   end # END OF Harvester CLASS
 end
