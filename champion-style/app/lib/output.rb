@@ -11,8 +11,8 @@ module FAIRChampion
 
     def_delegators FAIRChampion::Output, :triplify
 
-    attr_accessor :score, :testedGUID, :testid, :uniqueid, :name, :description, :license, :dt, :metric,
-                  :version, :summary, :completeness, :comments, :guidance
+    attr_accessor :score, :testedGUID, :testid, :uniqueid, :name, :description, :license, :dt, :metric, :softwareid,
+                  :version, :summary, :completeness, :comments, :guidance, :creator, :protocol, :host, :basePath, :api
 
     OPUTPUT_VERSION = '1.1.1'
 
@@ -28,9 +28,14 @@ module FAIRChampion
       @version = meta[:testversion]
       @summary = meta[:summary] || 'Summary:'
       @completeness = '100'
-      @testid = meta[:testid]
       @comments = []
       @guidance = meta.fetch(:guidance, [])
+      @creator = meta[:creator]
+      @protocol = meta[:protocol].gsub(%r{[:/]}, '')
+      @host = meta[:host].gsub(%r{[:/]}, '')
+      @basePath = meta[:basePath].gsub(%r{[:/]}, '')
+      @softwareid = "#{@protocol}://#{@host}/#{@basePath}/#{meta[:testid]}"
+      @api = "#{@softwareid}/api"
     end
 
     def createEvaluationResponse
@@ -54,8 +59,6 @@ module FAIRChampion
 
       executionid = 'urn:ostrails:testexecutionactivity:' + SecureRandom.uuid
 
-      # softwareid = 'urn:ostrails:fairtestsoftware:' + SecureRandom.uuid
-      softwareid = "https://tests.ostrails.eu/tests/#{testid}"
       # tid = 'urn:ostrails:fairtestentity:' + SecureRandom.uuid
       # The entity is no longer an anonymous node, it is the GUID Of the tested input
 
@@ -64,7 +67,7 @@ module FAIRChampion
       triplify(uniqueid, prov.wasGeneratedBy, executionid, g)
 
       triplify(uniqueid, RDF.type, ftr.TestResult, g)
-      triplify(uniqueid, dct.identifier, uniqueid, g)
+      triplify(uniqueid, dct.identifier, uniqueid.to_s, g, xsd.string)
       triplify(uniqueid, dct.title, "#{name} OUTPUT", g)
       triplify(uniqueid, dct.description, "OUTPUT OF #{description}", g)
       triplify(uniqueid, dct.license, license, g)
@@ -78,14 +81,11 @@ module FAIRChampion
       triplify(softwareid, RDF.type, ftr.Test, g)
       triplify(softwareid, RDF.type, schema.SoftwareApplication, g)
       triplify(softwareid, RDF.type, dcat.DataService, g)
-      triplify(softwareid, dct.identifier,
-               "https://tests.ostrails.eu/tests/#{testid}", g, xsd.string)
+      triplify(softwareid, dct.identifier, softwareid.to_s, g, xsd.string)
       triplify(softwareid, dct.title, "#{name}", g)
       triplify(softwareid, dct.description, description, g)
-      triplify(softwareid, dcat.endpointDescription,
-               "https://tests.ostrails.eu/tests/#{testid}", g) # returns yaml
-      triplify(softwareid, dcat.endpointURL,
-               "https://tests.ostrails.eu/tests/#{testid}", g) # POST to execute
+      triplify(softwareid, dcat.endpointDescription, api, g) # returns yaml
+      triplify(softwareid, dcat.endpointURL, softwareid, g) # POST to execute
       triplify(softwareid, 'http://www.w3.org/ns/dcat#version', "#{version} OutputVersion:#{OPUTPUT_VERSION}", g) # dcat namespace in library has no version - dcat 2 not 3
       triplify(softwareid, dct.license, 'https://github.com/wilkinsonlab/FAIR-Core-Tests/blob/main/LICENSE', g)
       triplify(softwareid, sio['SIO_000233'], metric, g) # implementation of
@@ -96,8 +96,8 @@ module FAIRChampion
       # triplify(tid, RDF.type, prov.Entity, g)
       # triplify(tid, schema.identifier, testedGUID, g, xsd.string)
       # triplify(tid, schema.url, testedGUID, g) if testedGUID =~ %r{^https?://}
-      # begin
       testedguidnode = 'urn:ostrails:testedidentifiernode:' + SecureRandom.uuid
+
       begin
         triplify(uniqueid, ftr.assessmentTarget, testedguidnode, g)
         triplify(executionid, prov.used, testedguidnode, g)
@@ -108,12 +108,6 @@ module FAIRChampion
         triplify(executionid, prov.used, 'not a URI', g)
         score = 'fail'
       end
-
-      # rescue StandardError
-      #   triplify(uniqueid, ftr.assessmentTarget, 'not a URI', g)
-      #   triplify(executionid, prov.used, 'not a URI', g)
-      #   score = 'fail'
-      # end
 
       unless score == 'pass'
         guidance.each do |advice, label|
@@ -143,6 +137,8 @@ module FAIRChampion
     class << self
       attr_reader :comments
     end
+
+    attr_reader :comments
 
     def self.clear_comments
       @comments = []

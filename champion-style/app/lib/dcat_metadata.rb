@@ -19,11 +19,11 @@ module ChampionDCAT
       @creator =  meta[:creator]
       @end_desc = meta[:end_desc]
       @end_url = meta[:end_url]
-      @landingpage = meta[:landingPage] || @end_url
       @dctype = meta[:dctype] || 'http://edamontology.org/operation_2428'
       @supportedby = meta[:supportedby] || ['https://tools.ostrails.eu/champion']
       @applicationarea = meta[:applicationarea] || ['http://www.fairsharing.org/ontology/subject/SRAO_0000401']
       @isapplicablefor = meta[:isapplicablefor] || ['https://schema.org/Dataset']
+      @landingpage = meta[:landingPage] || @end_url
       @license = meta[:license]
       @themes = meta[:themes]
       @themes = [@themes] unless @themes.is_a? Array
@@ -33,15 +33,10 @@ module ChampionDCAT
       @protocol =  meta[:protocol]
       @host = meta[:host]
       @basePath = meta[:basePath]
-      cleanhost = @host.gsub(%r{/}, '')
-      cleanpath = @basePath.gsub(%r{/}, '')
+      cleanhost = @host.gsub('/', '')
+      cleanpath = @basePath.gsub('/', '')
       endpointpath = 'assess/test'
-      # NOTE: that this has been changed compared to the core fair tests
-      # # core fair tests shoud be modified to include the cleanpath before the endpoint path
-      # and then the proxy doesn't need to be configured to recognize "assess", it can just recognize
-      # the path that is entered into basePath in the environment
-      # # TODO - fix COre Tests and the proxy on the core tests server
-      @end_url = "#{protocol}://#{cleanhost}/#{cleanpath}/#{endpointpath}/#{testid}"
+      @end_url = "#{protocol}://#{cleanhost}/#{endpointpath}/#{testid}"
       @end_desc = "#{protocol}://#{cleanhost}/#{cleanpath}/#{testid}/api"
       @identifier = "#{protocol}://#{cleanhost}/#{cleanpath}/#{testid}"
       #      @implementations = [@end_url]
@@ -51,6 +46,8 @@ module ChampionDCAT
       schema = RDF::Vocab::SCHEMA
       dcterms = RDF::Vocab::DC
       vcard = RDF::Vocab::VCARD
+      xsd = RDF::Vocab::XSD
+
       dcat = RDF::Vocab::DCAT
       sio = RDF::Vocabulary.new('http://semanticscience.org/resource/')
       ftr = RDF::Vocabulary.new('https://w3id.org/ftr#')
@@ -68,7 +65,7 @@ module ChampionDCAT
 
       # triplify tests and rejects anything that is empty or nil  --> SAFE
       # Test Unique Identifier	dcterms:identifier	Literal
-      FAIRChampion::Output.triplify(me, dcterms.identifier, identifier, g)
+      FAIRChampion::Output.triplify(me, dcterms.identifier, identifier.to_s, g, xsd.string)
 
       # Title/Name of the test	dcterms:title	Literal
       FAIRChampion::Output.triplify(me, dcterms.title, testname, g)
