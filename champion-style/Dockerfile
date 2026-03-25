@@ -11,7 +11,6 @@ ENV LANG=en_US.UTF-8 \
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
         build-essential \
-        lighttpd \
         libxml++2.6-dev \
         libraptor2-0 \
         libxslt1-dev \
