@@ -12,25 +12,12 @@ def set_routes(classes: [])
     response.body = JSON.dump(Swagger::Blocks.build_root_json(classes))
   end
 
-  # get '/community-tests' do
-  #   redirect '/community-tests/'
-  # end
   get %r{/community-tests/?} do
     ts = Dir["#{File.dirname(__FILE__)}/../tests/*.rb"]
     @tests = ts.map { |t| t.match(%r{.*/(\S+)\.rb$})[1] } # This is just the final field in the URL
     @labels, @lps = FAIRChampion::Harvester.get_tests_metrics(tests: @tests) # the local URL is built in this routine, and called
     halt erb :listtests, layout: :listtests_layout
   end
-
-  # this redirect never needs to happen
-  # post '/community-tests/assess/test/:id' do
-  #   fullpath = request.fullpath.to_s
-  #   # not sure how this is going to respond, now...
-  #   fullpath.gsub!(%r{^/community-tests}, '') # due to new API calls that must befin with "assess" instead of "tests"
-  #   status 307
-  #   headers['Location'] = fullpath
-  #   ''
-  # end
 
   # This is fixed here, but needs to be reflected in the Core Tests
   # # TODO - fix Core Tests to have the same behavior

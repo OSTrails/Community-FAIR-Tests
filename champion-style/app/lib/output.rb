@@ -1,15 +1,14 @@
 require 'cgi'
 require 'securerandom'
 require 'rdf/vocab'
+require 'triple_easy' # provides "triplify" top-level function
 
 include RDF
 
 module FAIRChampion
   class Output
-    include RDF
-    extend Forwardable
-
-    def_delegators FAIRChampion::Output, :triplify
+    include TripleEasy # get the :"triplify" function
+    # triplify(s, p, o, repo, datatype: nil, context: nil, language: 'en')
 
     attr_accessor :score, :testedGUID, :testid, :uniqueid, :name, :description, :license, :dt, :metric, :softwareid,
                   :version, :summary, :completeness, :comments, :guidance, :creator, :protocol, :host, :basePath, :api
@@ -67,7 +66,7 @@ module FAIRChampion
       triplify(uniqueid, prov.wasGeneratedBy, executionid, g)
 
       triplify(uniqueid, RDF.type, ftr.TestResult, g)
-      triplify(uniqueid, dct.identifier, uniqueid.to_s, g, xsd.string)
+      triplify(uniqueid, dct.identifier, uniqueid.to_s, g, datatype: xsd.string)
       triplify(uniqueid, dct.title, "#{name} OUTPUT", g)
       triplify(uniqueid, dct.description, "OUTPUT OF #{description}", g)
       triplify(uniqueid, dct.license, license, g)
@@ -81,7 +80,7 @@ module FAIRChampion
       triplify(softwareid, RDF.type, ftr.Test, g)
       triplify(softwareid, RDF.type, schema.SoftwareApplication, g)
       triplify(softwareid, RDF.type, dcat.DataService, g)
-      triplify(softwareid, dct.identifier, softwareid.to_s, g, xsd.string)
+      triplify(softwareid, dct.identifier, softwareid.to_s, g, datatype: xsd.string)
       triplify(softwareid, dct.title, "#{name}", g)
       triplify(softwareid, dct.description, description, g)
       triplify(softwareid, dcat.endpointDescription, api, g) # returns yaml
@@ -102,7 +101,7 @@ module FAIRChampion
         triplify(uniqueid, ftr.assessmentTarget, testedguidnode, g)
         triplify(executionid, prov.used, testedguidnode, g)
         triplify(testedguidnode, RDF.type, prov.Entity, g)
-        triplify(testedguidnode, dct.identifier, testedGUID, g, 'xsd:string')
+        triplify(testedguidnode, dct.identifier, testedGUID, g, datatype: xsd.string)
       rescue StandardError
         triplify(uniqueid, ftr.assessmentTarget, 'not a URI', g)
         triplify(executionid, prov.used, 'not a URI', g)
@@ -138,8 +137,6 @@ module FAIRChampion
       attr_reader :comments
     end
 
-    attr_reader :comments
-
     def self.clear_comments
       @comments = []
     end
@@ -151,61 +148,6 @@ module FAIRChampion
         cleancomments << c
       end
       @comments = cleancomments
-    end
-
-    def self.triplify(s, p, o, repo, datatype = nil)
-      begin
-        # warn "S-P-O #{s.to_s} #{p.to_s} #{o.to_s}"
-      rescue StandardError
-        warn 'input to #triplify seems totally invalid!'
-        return false
-      end
-      s = s.strip if s.instance_of?(String)
-      p = p.strip if p.instance_of?(String)
-      o = o.strip if o.instance_of?(String)
-
-      unless s.respond_to?('uri')
-
-        raise "Subject #{s} must be a URI-compatible thingy" unless s.to_s =~ %r{^\w+:/?/?[^\s]+}
-
-        s = RDF::URI.new(s.to_s)
-
-      end
-
-      unless p.respond_to?('uri')
-
-        if p.to_s =~ %r{^\w+:/?/?[^\s]+}
-          p = RDF::URI.new(p.to_s)
-        else
-          abort "Predicate #{p} must be a URI-compatible thingy"
-        end
-      end
-
-      unless o.respond_to?('uri?')
-        o = if datatype
-              warn "DATATYPE #{datatype}"
-              RDF::Literal.new(o.to_s, datatype: datatype)
-            elsif o.to_s =~ %r{\A\w+:/?/?\w[^\s]+}
-              RDF::URI.new(o.to_s)
-            elsif o.to_s =~ /^\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d/
-              RDF::Literal.new(o.to_s, datatype: RDF::XSD.date)
-            elsif o.to_s =~ /^[+-]?\d+\.\d+/ && o.to_s !~ /[^+\-\d.]/ # has to only be digits
-              RDF::Literal.new(o.to_s, datatype: RDF::XSD.float)
-            elsif o.to_s =~ /^[+-]?[0-9]+$/ && o.to_s !~ /[^+\-\d.]/ # has to only be digits
-              RDF::Literal.new(o.to_s, datatype: RDF::XSD.int)
-            else
-              RDF::Literal.new(o.to_s, language: :en)
-            end
-      end
-
-      triple = RDF::Statement(s, p, o)
-      repo.insert(triple)
-
-      true
-    end
-
-    def self.triplify_this(s, p, o, repo)
-      triplify(s, p, o, repo)
     end
   end
 end

@@ -102,7 +102,7 @@ class FAIRTest
   end
 
   def self.community_funding_information_registered_about
-    warn "META: #{community_funding_information_registered_meta.inspect}"
+    # warn "META: #{community_funding_information_registered_meta.inspect}"
     dcat = ChampionDCAT::DCAT_Record.new(meta: community_funding_information_registered_meta)
     dcat.get_dcat
   end
