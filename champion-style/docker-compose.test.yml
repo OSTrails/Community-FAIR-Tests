@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     container_name: tests
     environment:
-      TEST_PROTOCOL: http
+      TEST_PROTOCOL: https
       TEST_HOST: "tests:4567"
       TEST_PATH: "/tests/"
       FAIRSHARING_KEY: test_fairsharing_key
