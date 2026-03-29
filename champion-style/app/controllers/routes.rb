@@ -3,9 +3,12 @@ def set_routes(classes: [])
   set :public_folder, File.join(__dir__, '../public')
   set :port, 8282
   basepath = ENV.fetch('TEST_PATH')
+  testbaseurl = ENV.fetch('TEST_BASE_URL')
   abort 'TEST_PATH not set in environment - cannot continue' unless basepath
+  abort 'TEST_BASE_URL not set in environment - cannot continue' unless testbaseurl
   basepath = basepath.gsub(%r{^/}, '') # was frozen, so overwrite
   basepath = basepath.gsub(%r{/$}, '')
+  warn "\n\nbasePath set to #{basepath}\n\n"
 
   get '/' do
     content_type :json
@@ -15,7 +18,9 @@ def set_routes(classes: [])
   get %r{/#{basepath}/?} do
     ts = Dir["#{File.dirname(__FILE__)}/../tests/*.rb"]
     @tests = ts.map { |t| t.match(%r{.*/(\S+)\.rb$})[1] } # This is just the final field in the URL
-    @labels, @lps = FtrRuby::TestInfra.get_tests_metrics(tests: @tests) # the local URL is built in this routine, and called
+    @tests = ts.map { |t| t.match(%r{.*/(\S+)\.rb$})[1] } # This is just the final field in the URL
+    infra = FtrRuby::TestInfra.new(test_path: basepath, base_url: testbaseurl)
+    @labels, @lps = infra.get_tests_metrics(tests: @tests) # the local URL is built in this routine, and called
     halt erb :listtests, layout: :listtests_layout
   end
 
