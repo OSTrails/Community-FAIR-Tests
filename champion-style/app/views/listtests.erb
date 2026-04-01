@@ -7,8 +7,8 @@
       <input type="text" name="resource_identifier" id="resource_identifier_<%= testname %>" placeholder="e.g., https://example.org/dataset">
       <div>
         Metric: <a href="<%= @lps[testname] %>"><%= @labels[testname] %></a>&nbsp;&nbsp;
-        <a href="<%= testname %>/api">Interface YAML</a>  
-        <a href="<%= testname %>">DCAT Metadata</a>
+        <a href="/<%= @basepath %>/<%= testname %>/api">Interface YAML</a>  
+        <a href="/<%= @basepath %>/<%= testname %>">DCAT Metadata</a>
       </div>
       <input type="submit" value="Test it">
     </form>

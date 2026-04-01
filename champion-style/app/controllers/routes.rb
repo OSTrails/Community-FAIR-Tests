@@ -24,7 +24,7 @@ def set_routes(classes: [])
     @tests = ts.map { |t| t.match(%r{.*/(\S+)\.rb$})[1] } # This is just the final field in the URL
     # def initialize(test_host:, basepath:, test_protocol:)
     infra = FtrRuby::TestInfra.new(test_host: test_host, basepath: basepath, test_protocol: test_protocol)
-
+    @basepath = basepath
     @labels, @lps = infra.get_tests_metrics(tests: @tests) # the local URL is built in this routine, and called
     halt erb :listtests, layout: :listtests_layout
   end
