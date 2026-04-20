@@ -1,7 +1,7 @@
 class FAIRTest
   def self.erdera_vp_l2_metadata_meta
     {
-      testversion: HARVESTER_VERSION + ':' + 'Tst-0.0.1',
+      testversion: HARVESTER_VERSION + ':' + 'Tst-0.0.2',
       testname: 'ERDERA: Minimal VP Metadata for Level 2 Compliance',
       testid: 'erdera_vp_l2_metadata',
       description: "The ERDERA Project has strict requirements for minimal metadata to onboard their Virtual Platform.
@@ -88,11 +88,11 @@ class FAIRTest
     end
 
     output.score = 'fail'
-    runtest(output: output, g: g)
+    FAIRTest.erderea_vp_l2_metadata_runtest(output: output, g: g)
     output.createEvaluationResponse
   end
 
-  def runtest(output:, g:)
+  def self.erderea_vp_l2_metadata_runtest(output:, g:)
     prefixes = "PREFIX dcat: <http://www.w3.org/ns/dcat#>
 	PREFIX dct: <http://purl.org/dc/terms/>
 	"
@@ -101,22 +101,22 @@ class FAIRTest
 
     successflag = false
     classes.each do |classs|
-      output.addComment "INFO:  Testing if it is a #{classs}.\n"
+      output.comments << "INFO:  Testing if it is a #{classs}.\n"
       classquery = SPARQL.parse("#{prefixes}
 						select ?s where {
 							?s a #{classs} .
 		}")
       results = classquery.execute(g)
       if results.any?
-        output.addComment "INFO: Found the EJP class #{classs} \n"
+        output.comments << "INFO: Found the EJP class #{classs} \n"
         successflag = true
       else
-        output.addComment "WARN: this is not a #{classs}. Moving on\n"
+        output.comments << "WARN: this is not a #{classs}. Moving on\n"
       end
     end
     if successflag
       # it is at least a legal clas, now check for property
-      output.addComment "INFO: Testing for the endpointURL and endpointDescription predicate \n"
+      output.comments << "INFO: Testing for the endpointURL and endpointDescription predicate \n"
       propertyquery = SPARQL.parse("#{prefixes}
 			select ?url ?desc where {
 				?s dcat:endpointURL ?url .
@@ -125,10 +125,10 @@ class FAIRTest
       results = propertyquery.execute(g)
       if results.any?
         output.score = 'pass'
-        output.addComment "SUCCESS: found endpointURL and endpointDescription\n"
+        output.comments << "SUCCESS: found endpointURL and endpointDescription\n"
       else
-        output.addComment "INFO: didn't find endpointURL and endpointDescription predicate \n"
-        output.addComment "INFO: Testing for the landingPage predicate \n"
+        output.comments << "INFO: didn't find endpointURL and endpointDescription predicate \n"
+        output.comments << "INFO: Testing for the landingPage predicate \n"
         propertyquery = SPARQL.parse("#{prefixes}
 			select ?lp where {
 				?s dcat:landingPage ?lp .
@@ -136,13 +136,13 @@ class FAIRTest
         results = propertyquery.execute(g)
         if results.any?
           output.score = 'pass'
-          output.addComment "SUCCESS: found landingPage\n"
+          output.comments << "SUCCESS: found landingPage\n"
         else
-          output.addComment "FAILURE: EJP DataServices are recommended to have both a endpointURL and endpointDescription, or a landingPage.\n"
+          output.comments << "FAILURE: EJP DataServices are recommended to have both a endpointURL and endpointDescription, or a landingPage.\n"
         end
       end
     else
-      output.addComment "INFO: This test should not be run on this class type. You will pass. \n"
+      output.comments << "INFO: This test should not be run on this class type. You will pass. \n"
       output.score = 'pass'
     end
   end
