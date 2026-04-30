@@ -1,7 +1,7 @@
 class FAIRTest
   def self.community_funding_information_registered_meta
     {
-      testversion: HARVESTER_VERSION + ':' + 'Tst-0.0.1',
+      testversion: HARVESTER_VERSION + ':' + 'Tst-0.0.2',
       testname: 'Funding information registered in DOI metadata',
       testid: 'community_funding_information_registered',
       description: 'Test a DOI to determine if funder information is available in the datacite or crossref metadata',
@@ -28,13 +28,18 @@ class FAIRTest
 
   def self.community_funding_information_registered(guid:)
     FtrRuby::Output.clear_comments
+    output.comments << "INFO: TEST VERSION '#{community_funding_information_registered_meta[:testversion]}'\n"
+
+    guid = guid.strip
+    if guid.match(%r{https?://[^/]+/(.*)})
+      output.comments << "INFO: incoming guid stripped to be a raw DOI'\n"
+      guid = ::Regexp.last_match(1)
+    end
 
     output = FtrRuby::Output.new(
       testedGUID: guid,
       meta: community_funding_information_registered_meta
     )
-
-    output.comments << "INFO: TEST VERSION '#{community_funding_information_registered_meta[:testversion]}'\n"
 
     # meta = FAIRChampion::MetadataObject.new
     metadata = FAIRChampionHarvester::Core.resolveit(guid) # this is where the magic happens!

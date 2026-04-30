@@ -1,7 +1,7 @@
 class FAIRTest
   def self.community_open_access_publication_meta
     {
-      testversion: HARVESTER_VERSION + ':' + 'Tst-0.0.1',
+      testversion: HARVESTER_VERSION + ':' + 'Tst-0.0.2',
       testname: 'Resource is Open-Access output',
       testid: 'community_open_access_publication',
       description: 'Test a DOI against OpenAlex to determine if the resource output is open-access',
@@ -29,12 +29,18 @@ class FAIRTest
   def self.community_open_access_publication(guid:)
     FtrRuby::Output.clear_comments
 
+    output.comments << "INFO: TEST VERSION '#{community_open_access_publication_meta[:testversion]}'\n"
+
+    guid = guid.strip
+    if guid.match(%r{https?://[^/]+/(.*)})
+      output.comments << "INFO: incoming guid stripped to be a raw DOI'\n"
+      guid = ::Regexp.last_match(1)
+    end
+
     output = FtrRuby::Output.new(
       testedGUID: guid,
       meta: community_open_access_publication_meta
     )
-
-    output.comments << "INFO: TEST VERSION '#{community_open_access_publication_meta[:testversion]}'\n"
 
     meta = FAIRChampionHarvester::MetadataObject.new
     metadata = FAIRChampionHarvester::DOI.openalex_doi(guid, meta) # this is where the magic happens!

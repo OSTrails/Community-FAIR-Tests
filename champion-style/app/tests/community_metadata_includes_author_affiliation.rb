@@ -1,7 +1,7 @@
 class FAIRTest
   def self.community_metadata_includes_author_affiliation_meta
     {
-      testversion: HARVESTER_VERSION + ':' + 'Tst-0.0.1',
+      testversion: HARVESTER_VERSION + ':' + 'Tst-0.0.2',
       testname: 'Metadata includes author affiliation',
       testid: 'community_metadata_includes_author_affiliation',
       description: 'Use Crossref and Datacite APIs to scan a metadata record for author affiliation. Also check landing page for citation_author_institution meta property',
@@ -29,12 +29,18 @@ class FAIRTest
   def self.community_metadata_includes_author_affiliation(guid:)
     FtrRuby::Output.clear_comments
 
+    output.comments << "INFO: TEST VERSION '#{community_metadata_includes_author_affiliation_meta[:testversion]}'\n"
+
+    guid = guid.strip
+    if guid.match(%r{https?://[^/]+/(.*)})
+      output.comments << "INFO: incoming guid stripped to be a raw DOI'\n"
+      guid = ::Regexp.last_match(1)
+    end
+
     output = FtrRuby::Output.new(
       testedGUID: guid,
       meta: community_metadata_includes_author_affiliation_meta
     )
-
-    output.comments << "INFO: TEST VERSION '#{community_metadata_includes_author_affiliation_meta[:testversion]}'\n"
 
     # meta = FAIRChampion::MetadataObject.new
     metadata = FAIRChampionHarvester::Core.resolveit(guid) # this is where the magic happens!

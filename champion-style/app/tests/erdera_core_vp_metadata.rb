@@ -95,7 +95,7 @@ class FAIRTest
                             dcat:keyword dct:language dct:license
                             dct:publisher dct:title dcat:contactPoint dcat:landingPage]
 
-    specialpredicates = %w[dct:isPartOf]
+    _specialpredicates = %w[dct:isPartOf]
 
     optionalpredicates = %w[foaf:logo dct:issued dct:modified]
 
