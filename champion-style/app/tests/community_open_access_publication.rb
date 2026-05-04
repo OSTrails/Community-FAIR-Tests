@@ -28,6 +28,10 @@ class FAIRTest
 
   def self.community_open_access_publication(guid:)
     FtrRuby::Output.clear_comments
+    output = FtrRuby::Output.new(
+      testedGUID: guid,
+      meta: community_open_access_publication_meta
+    )
 
     output.comments << "INFO: TEST VERSION '#{community_open_access_publication_meta[:testversion]}'\n"
 
@@ -36,11 +40,6 @@ class FAIRTest
       output.comments << "INFO: incoming guid stripped to be a raw DOI'\n"
       guid = ::Regexp.last_match(1)
     end
-
-    output = FtrRuby::Output.new(
-      testedGUID: guid,
-      meta: community_open_access_publication_meta
-    )
 
     meta = FAIRChampionHarvester::MetadataObject.new
     metadata = FAIRChampionHarvester::DOI.openalex_doi(guid, meta) # this is where the magic happens!

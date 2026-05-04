@@ -29,6 +29,11 @@ class FAIRTest
   def self.community_metadata_includes_author_affiliation(guid:)
     FtrRuby::Output.clear_comments
 
+    output = FtrRuby::Output.new(
+      testedGUID: guid,
+      meta: community_metadata_includes_author_affiliation_meta
+    )
+
     output.comments << "INFO: TEST VERSION '#{community_metadata_includes_author_affiliation_meta[:testversion]}'\n"
 
     guid = guid.strip
@@ -36,11 +41,6 @@ class FAIRTest
       output.comments << "INFO: incoming guid stripped to be a raw DOI'\n"
       guid = ::Regexp.last_match(1)
     end
-
-    output = FtrRuby::Output.new(
-      testedGUID: guid,
-      meta: community_metadata_includes_author_affiliation_meta
-    )
 
     # meta = FAIRChampion::MetadataObject.new
     metadata = FAIRChampionHarvester::Core.resolveit(guid) # this is where the magic happens!

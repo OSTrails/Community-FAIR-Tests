@@ -28,6 +28,12 @@ class FAIRTest
 
   def self.community_license_information(guid:)
     FtrRuby::Output.clear_comments
+
+    output = FtrRuby::Output.new(
+      testedGUID: guid,
+      meta: community_license_information_meta
+    )
+
     output.comments << "INFO: TEST VERSION '#{community_license_information_meta[:testversion]}'\n"
 
     guid = guid.strip
@@ -35,11 +41,6 @@ class FAIRTest
       output.comments << "INFO: incoming guid stripped to be a raw DOI'\n"
       guid = ::Regexp.last_match(1)
     end
-
-    output = FtrRuby::Output.new(
-      testedGUID: guid,
-      meta: community_license_information_meta
-    )
 
     metadata = FAIRChampionHarvester::Core.resolveit(guid) # this is where the magic happens!
 

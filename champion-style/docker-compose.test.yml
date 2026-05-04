@@ -1,21 +1,7 @@
-version: "3"
 services:
-  tests:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: tests
-    environment:
-      TEST_PROTOCOL: https
-      TEST_HOST: "tests:4567"
-      TEST_PATH: "/tests/"
-      FAIRSHARING_KEY: test_fairsharing_key
-      BING_API: test_bing_api_key
-    command: bundle exec rspec
-    depends_on:
-      - tika
-
   tika:
-    image: apache/tika:1.23
+    image: apache/tika:3.3.0.0
     container_name: evaluator-tika
     restart: always
+    ports: 
+      - 9998:9998

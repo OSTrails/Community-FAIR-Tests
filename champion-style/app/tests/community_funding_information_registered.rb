@@ -28,6 +28,11 @@ class FAIRTest
 
   def self.community_funding_information_registered(guid:)
     FtrRuby::Output.clear_comments
+
+    output = FtrRuby::Output.new(
+      testedGUID: guid,
+      meta: community_funding_information_registered_meta
+    )
     output.comments << "INFO: TEST VERSION '#{community_funding_information_registered_meta[:testversion]}'\n"
 
     guid = guid.strip
