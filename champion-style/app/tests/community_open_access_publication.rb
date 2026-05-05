@@ -1,13 +1,11 @@
-require_relative File.dirname(__FILE__) + '/../lib/harvester.rb'
-
 class FAIRTest
   def self.community_open_access_publication_meta
     {
-      testversion: HARVESTER_VERSION + ':' + 'Tst-0.0.1',
+      testversion: HARVESTER_VERSION + ':' + 'Tst-0.0.2',
       testname: 'Resource is Open-Access output',
       testid: 'community_open_access_publication',
       description: 'Test a DOI against OpenAlex to determine if the resource output is open-access',
-      metric: 'https://w3id.org/fair-metrics/esrf/F4.OA.DOI.ttl'.downcase, # TODO: UPDATE TO DOI WHEN rEADY
+      metric: 'https://w3id.org/fair-metrics/esrf/FM_F4_M_DOI_OA_ESRF', # TODO: UPDATE TO DOI WHEN rEADY
       indicators: 'https://placeholder.org',
       type: 'http://edamontology.org/operation_2428',
       license: 'https://creativecommons.org/publicdomain/zero/1.0/',
@@ -24,22 +22,27 @@ class FAIRTest
       creator: 'https://orcid.org/0000-0001-6960-357X',
       protocol: ENV.fetch('TEST_PROTOCOL', 'https'),
       host: ENV.fetch('TEST_HOST', 'localhost'),
-      basePath: ENV.fetch('TEST_PATH', '/tests')
+      basePath: ENV.fetch('TEST_PATH', '/community-tests')
     }
   end
 
   def self.community_open_access_publication(guid:)
-    FAIRChampion::Output.clear_comments
-
-    output = FAIRChampion::Output.new(
+    FtrRuby::Output.clear_comments
+    output = FtrRuby::Output.new(
       testedGUID: guid,
       meta: community_open_access_publication_meta
     )
 
     output.comments << "INFO: TEST VERSION '#{community_open_access_publication_meta[:testversion]}'\n"
 
-    meta = FAIRChampion::MetadataObject.new
-    metadata = FAIRChampion::Harvester.openalex_doi(guid, meta) # this is where the magic happens!
+    guid = guid.strip
+    if guid.match(%r{https?://[^/]+/(.*)})
+      output.comments << "INFO: incoming guid stripped to be a raw DOI'\n"
+      guid = ::Regexp.last_match(1)
+    end
+
+    meta = FAIRChampionHarvester::MetadataObject.new
+    metadata = FAIRChampionHarvester::DOI.openalex_doi(guid, meta) # this is where the magic happens!
 
     metadata.comments.each do |c|
       output.comments << c
@@ -69,12 +72,12 @@ class FAIRTest
   end
 
   def self.community_open_access_publication_api
-    api = OpenAPI.new(meta: community_open_access_publication_meta)
+    api = FtrRuby::OpenAPI.new(meta: community_open_access_publication_meta)
     api.get_api
   end
 
   def self.community_open_access_publication_about
-    dcat = ChampionDCAT::DCAT_Record.new(meta: community_open_access_publication_meta)
+    dcat = FtrRuby::DCAT_Record.new(meta: community_open_access_publication_meta)
     dcat.get_dcat
   end
 end

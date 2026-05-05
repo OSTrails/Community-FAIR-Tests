@@ -1,37 +1,40 @@
-require 'json' # ensure json stdlib is loaded
-require 'yaml'
-require 'erb'
-
 def set_routes(classes: [])
   set :server_settings, timeout: 180
   set :public_folder, File.join(__dir__, '../public')
   set :port, 8282
+
+  test_host = ENV.fetch('TEST_HOST')
+  basepath = ENV.fetch('TEST_PATH')
+  test_protocol = ENV.fetch('TEST_PROTOCOL')
+  abort 'TEST_PATH not set in environment - cannot continue' unless basepath
+  abort 'TEST_PROTOCOL not set in environment - cannot continue' unless test_protocol
+  abort 'TEST_HOST not set in environment - cannot continue' unless test_host
+  basepath = basepath.gsub(%r{^/}, '') # was frozen, so overwrite
+  basepath = basepath.gsub(%r{/$}, '')
+  warn "\n\nbasepath set to #{basepath}\n\n"
 
   get '/' do
     content_type :json
     response.body = JSON.dump(Swagger::Blocks.build_root_json(classes))
   end
 
-  # get '/community-tests' do
-  #   redirect '/community-tests/'
-  # end
-  get %r{/community-tests/?} do
+  get %r{/#{basepath}/?} do
     ts = Dir["#{File.dirname(__FILE__)}/../tests/*.rb"]
     @tests = ts.map { |t| t.match(%r{.*/(\S+)\.rb$})[1] } # This is just the final field in the URL
-    @labels, @lps = FAIRChampion::Harvester.get_tests_metrics(tests: @tests) # the local URL is built in this routine, and called
+    @tests = ts.map { |t| t.match(%r{.*/(\S+)\.rb$})[1] } # This is just the final field in the URL
+    # def initialize(test_host:, basepath:, test_protocol:)
+    infra = FtrRuby::TestInfra.new(test_host: test_host, basepath: basepath, test_protocol: test_protocol)
+    @basepath = basepath
+    @labels, @lps = infra.get_tests_metrics(tests: @tests) # the local URL is built in this routine, and called
     halt erb :listtests, layout: :listtests_layout
   end
 
-  # post '/community-tests/assess/test/:id' do
-  #   fullpath = request.fullpath.to_s
-  #   # not sure how this is going to respond, now...
-  #   fullpath.gsub!(%r{^/community-tests}, '') # due to new API calls that must befin with "assess" instead of "tests"
-  #   status 307
-  #   headers['Location'] = fullpath
-  #   ''
-  # end
-
-  post '/community-tests/assess/test/:id' do
+  # This is fixed here, but needs to be reflected in the Core Tests
+  # # TODO - fix Core Tests to have the same behavior
+  # # prefix 'community-tests' comes from basePath in the environment
+  # then endpointPath in the DCAT is created by appending /assess/test/ to that, followed by ID
+  # # we should do the same in the core tests
+  post "/#{basepath}/assess/test/:id" do
     content_type :json
     id = params[:id]
     guid = ''
@@ -67,8 +70,8 @@ def set_routes(classes: [])
   # ============================= GET ----
   # ============================= GET ----
 
-  get '/community-tests/:id' do # returns DCAT
-    warn "get '/community-tests/:id'"
+  get "/#{basepath}/:id" do # returns DCAT
+    warn "get '/#{basepath}/:id'"
     id = params[:id]
     idabout = "#{id}_about"
     begin
@@ -96,7 +99,7 @@ def set_routes(classes: [])
     end
   end
 
-  get '/community-tests/:id/api' do # return swagger
+  get "/#{basepath}/:id/api" do # return swagger
     content_type 'application/openapi+yaml'
     id = params[:id]
     idapi = id + '_api'
@@ -108,19 +111,3 @@ def set_routes(classes: [])
     @result
   end
 end
-
-# get '/community-tests/fdpindex_tests/' do
-#   @testobjects = FAIRChampion::Index.retrieve_tests_from_index
-#   @labels = FAIRChampion::Index.get_metrics_labels_for_tests(tests: @testobjects)
-#   halt erb :listalltests, layout: :listtests_layout
-# end
-
-# get '/community-tests/new' do
-#   halt erb :newtest, layout: :newtest_layout
-# end
-
-# post '/community-tests/new' do
-#   test_uri = params['test_uri']
-#   @result = FAIRChampion::Tests.register_test(test_uri: test_uri)
-#   halt erb :newtest_output, layout: :newtest_layout
-# end

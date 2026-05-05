@@ -7,7 +7,13 @@ require 'json'
 require 'erb'
 require 'require_all'
 require 'jsonpath'
+# gem 'multi_json', '= 1.19.1'
+# require 'multi_json'
 require 'dotenv/load' unless ENV['RACK_ENV'] == 'production'
+require 'triple_easy'
+require 'fair_champion_harvester'
+require 'ftr_ruby'
+require 'yaml'
 
 require_rel './routes.rb'
 require_rel '../models'
@@ -63,9 +69,9 @@ class ApplicationController < Sinatra::Application
         key :name, 'MIT'
       end
     end
-    key :schemes, ['http']
-    key :host, ENV.fetch('HARVESTER', nil)
-    key :basePath, '/tests/'
+    key :schemes, [ENV.fetch('TEST_PROTOCOL', 'http')]
+    key :host, ENV.fetch('TEST_HOST', 'localhost')
+    key :basePath, ENV.fetch('TEST_PATH', '/tests/')
   end
 
   SWAGGERED_CLASSES = [ErrorModel, self].freeze

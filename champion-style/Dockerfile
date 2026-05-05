@@ -1,3 +1,4 @@
+
 # Use explicit tag for reproducibility (Debian 12 / Bookworm)
 FROM ruby:3.2-bookworm
 
@@ -7,11 +8,11 @@ ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     RACK_ENV=production
 
+
 # Combine all apt installs + cleanup in ONE layer for smaller image & better caching
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
         build-essential \
-        lighttpd \
         libxml++2.6-dev \
         libraptor2-0 \
         libxslt1-dev \
@@ -32,7 +33,11 @@ RUN gem update --system \
 
 # Install gems first (cache layer — only rebuild if Gemfile changes)
 COPY Gemfile Gemfile.lock community-fair-tests.gemspec ./
-RUN bundle install --jobs 4 --retry 3
+
+# Clean any previous partial installs + install
+RUN rm -rf /usr/local/bundle/gems/debase-ruby_core_source* \
+           /usr/local/bundle/specifications/debase-ruby_core_source* \
+    && bundle install --jobs 4 --retry 3
 
 # Copy the rest of the application code
 COPY . .

@@ -1,13 +1,11 @@
-require_relative File.dirname(__FILE__) + '/../lib/harvester.rb'
-
 class FAIRTest
   def self.community_funding_information_registered_meta
     {
-      testversion: HARVESTER_VERSION + ':' + 'Tst-0.0.1',
+      testversion: HARVESTER_VERSION + ':' + 'Tst-0.0.2',
       testname: 'Funding information registered in DOI metadata',
       testid: 'community_funding_information_registered',
       description: 'Test a DOI to determine if funder information is available in the datacite or crossref metadata',
-      metric: 'https://w3id.org/fair-metrics/esrf/R1.2.FUND.ttl'.downcase, # TODO: UPDATE TO DOI WHEN rEADY
+      metric: 'https://w3id.org/fair-metrics/esrf/FM_R1-2_M_Fund_ESRF',
       indicators: 'https://placeholder.org',
       type: 'http://edamontology.org/operation_2428',
       license: 'https://creativecommons.org/publicdomain/zero/1.0/',
@@ -24,22 +22,32 @@ class FAIRTest
       creator: 'https://orcid.org/0000-0001-6960-357X',
       protocol: ENV.fetch('TEST_PROTOCOL', 'https'),
       host: ENV.fetch('TEST_HOST', 'localhost'),
-      basePath: ENV.fetch('TEST_PATH', '/tests')
+      basePath: ENV.fetch('TEST_PATH', '/community-tests')
     }
   end
 
   def self.community_funding_information_registered(guid:)
-    FAIRChampion::Output.clear_comments
+    FtrRuby::Output.clear_comments
 
-    output = FAIRChampion::Output.new(
+    output = FtrRuby::Output.new(
+      testedGUID: guid,
+      meta: community_funding_information_registered_meta
+    )
+    output.comments << "INFO: TEST VERSION '#{community_funding_information_registered_meta[:testversion]}'\n"
+
+    guid = guid.strip
+    if guid.match(%r{https?://[^/]+/(.*)})
+      output.comments << "INFO: incoming guid stripped to be a raw DOI'\n"
+      guid = ::Regexp.last_match(1)
+    end
+
+    output = FtrRuby::Output.new(
       testedGUID: guid,
       meta: community_funding_information_registered_meta
     )
 
-    output.comments << "INFO: TEST VERSION '#{community_funding_information_registered_meta[:testversion]}'\n"
-
     # meta = FAIRChampion::MetadataObject.new
-    metadata = FAIRChampion::Harvester.resolveit(guid) # this is where the magic happens!
+    metadata = FAIRChampionHarvester::Core.resolveit(guid) # this is where the magic happens!
 
     metadata.comments.each do |c|
       output.comments << c
@@ -59,7 +67,7 @@ class FAIRTest
     output.comments << "INFO: Now testing #{guid} for funder information\n"
 
     output.comments << "INFO: Now testing #{guid} for registration agency\n"
-    agency = FAIRChampion::Harvester.resolve_doi_to_registration_agency(guid, output)
+    agency = FAIRChampionHarvester::DOI.resolve_doi_to_registration_agency(guid, output)
     unless agency
       output.score = 'indeterminate'
       output.comments << "INDETERMINATE: The DOI was not a datacite or crossref DOI.\n"
@@ -69,7 +77,7 @@ class FAIRTest
     if agency == 'Crossref'
       output.comments << "INFO: Agency is Crossref\n"
       output.comments << "INFO: Checking for funding block\n"
-      fundingblock = FAIRChampion::Harvester.get_funding_information_from_crossref(guid, output)
+      fundingblock = FAIRChampionHarvester::DOI.get_funding_information_from_crossref(guid, output)
       unless fundingblock
         output.score = 'fail'
         output.comments << "FAIL: No funder found in crossref metadata.\n"
@@ -78,7 +86,7 @@ class FAIRTest
     elsif agency == 'DataCite'
       output.comments << "INFO: Agency is Datacite\n"
       output.comments << "INFO: Checking for funding block\n"
-      fundingblock = FAIRChampion::Harvester.get_funding_information_from_datacite(guid, output)
+      fundingblock = FAIRChampionHarvester::DOI.get_funding_information_from_datacite(guid, output)
       unless fundingblock
         output.score = 'fail'
         output.comments << "FAIL: No funder found in datacite metadata.\n"
@@ -97,12 +105,13 @@ class FAIRTest
   end
 
   def self.community_funding_information_registered_api
-    api = OpenAPI.new(meta: community_funding_information_registered_meta)
+    api = FtrRuby::OpenAPI.new(meta: community_funding_information_registered_meta)
     api.get_api
   end
 
   def self.community_funding_information_registered_about
-    dcat = ChampionDCAT::DCAT_Record.new(meta: community_funding_information_registered_meta)
+    # warn "META: #{community_funding_information_registered_meta.inspect}"
+    dcat = FtrRuby::DCAT_Record.new(meta: community_funding_information_registered_meta)
     dcat.get_dcat
   end
 end
